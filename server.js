@@ -127,8 +127,24 @@ function verifyAdmin(req, res, next) {
 }
 
 // -------------------------------------------------------------------
-// HEALTH CHECK
+// ROOT & HEALTH CHECK
 // -------------------------------------------------------------------
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    academy: 'Dialight Football Academy API',
+    database: isMongoConnected ? 'mongodb_atlas' : 'local_json',
+    endpoints: {
+      health: '/api/health',
+      news: '/api/news',
+      fixtures: '/api/fixtures',
+      matchLive: '/api/match/live',
+      photos: '/api/photos',
+      videos: '/api/videos'
+    }
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
