@@ -234,15 +234,7 @@ async function seedDefaults() {
           location: 'Adura Field, Alagbado, Lagos',
           badge: 'Open Trials'
         },
-        {
-          title: 'Upcoming Match: Dialight FA U17 vs Golden Stars FC',
-          content: 'Dialight FA U17 takes on Golden Stars FC in the Lagos Youth League Showcase at Adura Field.',
-          category: 'Match',
-          date: 'Sat, 17 Oct 2026',
-          time: '3:00 PM',
-          location: 'Adura Field, Alagbado, Lagos',
-          badge: 'Fixture'
-        }
+
       ]);
       console.log('Seed: Created initial news entries.');
     }

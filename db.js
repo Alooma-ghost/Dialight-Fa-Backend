@@ -129,18 +129,7 @@ function getDefaultData() {
         attachmentUrl: '',
         createdAt: new Date().toISOString()
       },
-      {
-        id: 'news-3',
-        title: 'Upcoming Match: Dialight FA U17 vs Golden Stars FC',
-        content: 'Showcase match scheduled for this weekend at Adura Field pitch.',
-        category: 'Match',
-        date: 'Sat, 17 Oct 2026',
-        time: '3:00 PM',
-        location: 'Adura Field, Alagbado, Lagos',
-        badge: 'Fixture',
-        attachmentUrl: '',
-        createdAt: new Date().toISOString()
-      }
+
     ],
     settings: {
       academyName: 'Dialight Football Academy',
