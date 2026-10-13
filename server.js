@@ -733,6 +733,7 @@ app.get('/api/news', async (req, res) => {
       location: n.location,
       badge: n.badge,
       attachmentUrl: n.attachmentUrl || '',
+      attachmentName: n.attachmentName || '',
       createdAt: n.createdAt
     })));
   }
