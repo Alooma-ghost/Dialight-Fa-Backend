@@ -265,9 +265,10 @@ app.get('/api/match/live', async (req, res) => {
   res.json(data.match);
 });
 
-app.put('/api/match/live', verifyAdmin, async (req, res) => {
+const handleLiveMatchUpdate = async (req, res) => {
   const updates = req.body;
 
+  let savedMatch = null;
   if (isMongoConnected) {
     let match = await Match.findOne().sort({ updatedAt: -1 });
     if (!match) {
@@ -276,6 +277,30 @@ app.put('/api/match/live', verifyAdmin, async (req, res) => {
       Object.assign(match, updates, { updatedAt: new Date() });
     }
     await match.save();
+    savedMatch = match;
+
+    // Automatically make live match updates part of Academy News
+    if (updates.homeTeam && updates.awayTeam && updates.status && updates.status !== 'No Match') {
+      try {
+        const liveBadge = updates.status === 'Live' ? 'LIVE' : (updates.status === 'Full Time' ? 'Full Time' : updates.status);
+        const liveTitle = updates.status === 'Live' || updates.status === 'Half Time'
+          ? `LIVE MATCH: ${updates.homeTeam} ${updates.homeScore ?? 0}–${updates.awayScore ?? 0} ${updates.awayTeam} (${updates.minute || updates.status})`
+          : `Match Update: ${updates.homeTeam} ${updates.homeScore ?? 0}–${updates.awayScore ?? 0} ${updates.awayTeam} (${updates.status})`;
+
+        await News.create({
+          title: liveTitle,
+          content: `Official Match Update from Adura Field: ${updates.homeTeam} vs ${updates.awayTeam}. Competition: ${updates.competition || 'Friendly'}. Status: ${updates.status} ${updates.minute ? `(${updates.minute})` : ''}. ${updates.note || ''}`,
+          category: 'Match',
+          date: updates.date || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+          time: updates.minute || updates.status,
+          location: 'Adura Field, Alagbado, Lagos',
+          badge: liveBadge
+        });
+      } catch (err) {
+        console.warn('Could not auto-create news for live match:', err.message);
+      }
+    }
+
     return res.json({ success: true, match });
   }
 
@@ -285,9 +310,34 @@ app.put('/api/match/live', verifyAdmin, async (req, res) => {
     ...updates,
     updatedAt: new Date().toISOString()
   };
+
+  // Auto-create news in JSON db
+  if (updates.homeTeam && updates.awayTeam && updates.status && updates.status !== 'No Match') {
+    const liveBadge = updates.status === 'Live' ? 'LIVE' : (updates.status === 'Full Time' ? 'Full Time' : updates.status);
+    const liveTitle = updates.status === 'Live' || updates.status === 'Half Time'
+      ? `LIVE MATCH: ${updates.homeTeam} ${updates.homeScore ?? 0}–${updates.awayScore ?? 0} ${updates.awayTeam} (${updates.minute || updates.status})`
+      : `Match Update: ${updates.homeTeam} ${updates.homeScore ?? 0}–${updates.awayScore ?? 0} ${updates.awayTeam} (${updates.status})`;
+
+    data.news = data.news || [];
+    data.news.unshift({
+      id: `news-match-${Date.now()}`,
+      title: liveTitle,
+      content: `Official Match Update from Adura Field: ${updates.homeTeam} vs ${updates.awayTeam}. Competition: ${updates.competition || 'Friendly'}. Status: ${updates.status} ${updates.minute ? `(${updates.minute})` : ''}. ${updates.note || ''}`,
+      category: 'Match',
+      date: updates.date || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      time: updates.minute || updates.status,
+      location: 'Adura Field, Alagbado, Lagos',
+      badge: liveBadge,
+      createdAt: new Date().toISOString()
+    });
+  }
+
   jsonDb.save();
   res.json({ success: true, match: data.match });
-});
+};
+
+app.put('/api/match/live', verifyAdmin, handleLiveMatchUpdate);
+app.post('/api/match/live', verifyAdmin, handleLiveMatchUpdate);
 
 // -------------------------------------------------------------------
 // FIXTURES & RESULTS
@@ -328,8 +378,33 @@ app.post('/api/fixtures', verifyAdmin, async (req, res) => {
     isResult: Boolean(isResult)
   };
 
+  // Every match fixture automatically generates a corresponding news item
+  const isMatchResult = Boolean(isResult) || status === 'Completed';
+  const newsTitle = isMatchResult
+    ? `Match Result: ${payload.homeTeam} ${payload.result ? `(${payload.result})` : ''} vs ${payload.awayTeam}`
+    : `Upcoming Match: ${payload.homeTeam} vs ${payload.awayTeam} (${payload.competition})`;
+  const newsContent = isMatchResult
+    ? `Full-time match update: ${payload.homeTeam} vs ${payload.awayTeam} in ${payload.competition}. Result: ${payload.result}. Match played at Adura Field, Alagbado.`
+    : `Upcoming match fixture: ${payload.homeTeam} vs ${payload.awayTeam} on ${payload.date} at ${payload.time} at Adura Field, Alagbado. Competition: ${payload.competition}.`;
+
+  const newsData = {
+    title: newsTitle,
+    content: newsContent,
+    category: 'Match',
+    date: payload.date,
+    time: payload.time,
+    location: 'Adura Field, Alagbado, Lagos',
+    badge: isMatchResult ? 'Result' : 'Fixture'
+  };
+
   if (isMongoConnected) {
     const fix = await Fixture.create(payload);
+    try {
+      await News.create(newsData);
+    } catch (e) {
+      console.warn('Could not auto-create news for fixture:', e.message);
+    }
+
     return res.status(201).json({
       success: true,
       fixture: {
@@ -347,6 +422,15 @@ app.post('/api/fixtures', verifyAdmin, async (req, res) => {
   };
   data.fixtures = data.fixtures || [];
   data.fixtures.unshift(newFixture);
+
+  // Add news in JSON db as well
+  data.news = data.news || [];
+  data.news.unshift({
+    id: `news-${Date.now()}`,
+    ...newsData,
+    createdAt: new Date().toISOString()
+  });
+
   jsonDb.save();
 
   res.status(201).json({ success: true, fixture: newFixture });
